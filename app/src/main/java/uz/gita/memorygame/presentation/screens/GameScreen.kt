@@ -4,18 +4,26 @@ import android.os.Bundle
 import android.view.View
 import android.widget.ImageView
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.navArgs
 import by.kirich1409.viewbindingdelegate.viewBinding
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import uz.gita.memorygame.R
-import uz.gita.memorygame.data.ImagesMapper
 import uz.gita.memorygame.databinding.ScreenGameBinding
+import uz.gita.memorygame.presentation.viewmodels.GameViewModel
+import uz.gita.memorygame.presentation.viewmodels.impl.GameViewModelImpl
+import uz.gita.memorygame.utils.hideImage
 import uz.gita.memorygame.utils.myApply
+import uz.gita.memorygame.utils.openImage
+import uz.gita.memorygame.utils.removeImage
 
+@AndroidEntryPoint
 class GameScreen : Fragment(R.layout.screen_game) {
     private val binding by viewBinding(ScreenGameBinding::bind)
+    private val viewModel: GameViewModel by viewModels<GameViewModelImpl>()
     private val navArgs by navArgs<GameScreenArgs>()
     private var views = ArrayList<ImageView>()
     private var countX: Int = 0
@@ -24,128 +32,52 @@ class GameScreen : Fragment(R.layout.screen_game) {
     private var cardHeight: Float = 0f
     private var firstImageIndex = -1
     private var secondImageIndex = -1
-    private var openedImages = ArrayList<Boolean>()
-    private var imagesID = ArrayList<Int>()
+    private var findCardsCount = 0
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) = binding.myApply {
         super.onViewCreated(view, savedInstanceState)
 
-        binding.container.post {
-            countY = navArgs.verticalCardCount
-            countX = navArgs.horizontalCardCount
+        countY = navArgs.verticalCardCount
+        countX = navArgs.horizontalCardCount
 
+        binding.container.post {
             cardHeight = container.height.toFloat() / countY
             cardWidth = container.width.toFloat() / countX
 
-            loadImagesID()
-            fillListOpenedImages()
-            setImages()
-            addClickEvent()
-        }
-    }
+            val ls = viewModel.getCardsByLevel(countX, countY)
 
-    private fun loadImagesID() {
-        repeat(2) {
-            for (i in 0 until countY * countX / 2) {
-                imagesID.add(ImagesMapper.map[i]!!)
+            loadImages(ls)
+            lifecycleScope.launch {
+                delay(1000) // 1 soniya kartalarni ochiq ushlab turadi,
+                hideCards()
+                delay(1000) // animatsiya bilan yopilishi uchun 1 soniya ketadi
+                setCardsClick()
             }
         }
 
-        imagesID.shuffle()
+        reload.setOnClickListener {
+
+        }
+        menu.setOnClickListener { }
     }
 
-    private fun fillListOpenedImages() {
-        repeat(countX * countY) {
-            openedImages.add(false)
+    private fun hideCards() {
+        views.forEach {
+            it.hideImage()
         }
     }
 
-    private fun addClickEvent() {
-        views.forEachIndexed { index, image ->
-            image.setOnClickListener {
-                if (openedImages[index]) {
-                    if (firstImageIndex != -1) {
-                        firstImageIndex = -1
-                    } else if (secondImageIndex != -1) {
-                        secondImageIndex = -1
-                    } else {
-                        return@setOnClickListener
-                    }
-
-                    image.animate()
-                        .setDuration(500)
-                        .rotationY(-89f)
-                        .withEndAction {
-                            image.rotationY = 89f
-                            image.setImageResource(R.drawable.image_back)
-                            image.animate()
-                                .setDuration(1000)
-                                .rotationY(0f)
-                                .start()
-                        }
-                        .start()
-                    openedImages[index] = false
-
-                } else {
-                    if (firstImageIndex == -1) {
-                        firstImageIndex = index
-                    } else if (secondImageIndex == -1) {
-                        secondImageIndex = index
-                    } else {
-                        return@setOnClickListener
-                    }
-
-                    image.animate()
-                        .setDuration(500)
-                        .rotationY(89f)
-                        .withEndAction {
-                            image.rotationY = -89f  // 271
-                            image.setImageResource(imagesID[index])
-
-                            image.animate()
-                                .setDuration(1000)
-                                .rotationY(0f)
-                                .start()
-                        }
-                        .start()
-                    openedImages[index] = true
-                }
-
-                if (firstImageIndex != -1 && secondImageIndex != -1) {
-                    if (imagesID[firstImageIndex] == imagesID[secondImageIndex]) {
-                        lifecycleScope.launch {
-                            delay(1000)
-                            views[firstImageIndex].animate()
-                                .setDuration(1000)
-                                .alpha(0.1f)
-                                .start()
-                            views[secondImageIndex].animate()
-                                .setDuration(1000)
-                                .alpha(0.1f)
-                                .start()
-
-                            firstImageIndex = -1
-                            secondImageIndex = -1
-                        }
-                    } else {
-
-                    }
-                }
-            }
-        }
-    }
-
-    private fun setImages() {
+    private fun loadImages(images: List<Int>) {
         for (i in 0 until countY) {
             for (j in 0 until countX) {
                 val img = ImageView(requireContext())
-                img.animate()
-                    .setDuration(500)
-                    .x(j * cardWidth)
-                    .y(i * cardHeight)
-                    .start()
+                img.isClickable = false
+                img.setImageResource(images[i * countX + j])
 
-                img.setImageResource(R.drawable.image_back)
+                img.x = j * cardWidth
+                img.y = i * cardHeight
+                img.tag = images[i * countX + j]
+
                 binding.container.addView(img)
 
                 img.layoutParams.apply {
@@ -154,6 +86,57 @@ class GameScreen : Fragment(R.layout.screen_game) {
                 }
 
                 views.add(img)
+            }
+        }
+    }
+
+    private fun setCardsClick() {
+        views.forEachIndexed { index, imageView ->
+            imageView.setOnClickListener {
+                if (firstImageIndex != -1 && secondImageIndex != -1) return@setOnClickListener
+                imageView.openImage()
+
+                if (firstImageIndex == -1) {
+                    firstImageIndex = index
+                } else {
+                    secondImageIndex = index
+                    check()
+                }
+            }
+        }
+    }
+
+    private fun check() {
+        val first = views[firstImageIndex]
+        val second = views[secondImageIndex]
+
+        if (first.tag == second.tag) {
+            lifecycleScope.launch {
+                delay(1000)
+
+                first.removeImage()
+                second.removeImage {
+                    firstImageIndex = -1
+                    secondImageIndex = -1
+                }
+            }
+        } else {
+            lifecycleScope.launch {
+                delay(1000)
+                first.hideImage()
+                second.hideImage()
+
+                delay(1000) // animatsiya tugashi uchun 1 soniya ushlab turadi
+                first.isClickable = true
+                second.isClickable = true
+
+                firstImageIndex = -1
+                secondImageIndex = -1
+                findCardsCount += 2
+
+                if (findCardsCount == countX * countY) {
+                    viewModel.userWin()
+                }
             }
         }
     }

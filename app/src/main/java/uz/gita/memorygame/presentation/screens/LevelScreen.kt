@@ -5,9 +5,11 @@ import android.view.View
 import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import by.kirich1409.viewbindingdelegate.viewBinding
+import dagger.hilt.android.AndroidEntryPoint
 import uz.gita.memorygame.R
 import uz.gita.memorygame.databinding.ScreenLevelBinding
 
+@AndroidEntryPoint
 class LevelScreen : Fragment(R.layout.screen_level) {
     private val binding by viewBinding(ScreenLevelBinding::bind)
 
@@ -19,10 +21,10 @@ class LevelScreen : Fragment(R.layout.screen_level) {
                 startGame(2, 3)
             }
             medium.setOnClickListener {
-                startGame(6, 8)
+                startGame(3, 6)
             }
             hard.setOnClickListener {
-                startGame(8, 10)
+                startGame(4, 6)
             }
         }
     }
