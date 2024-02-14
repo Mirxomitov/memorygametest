@@ -1,11 +1,15 @@
 package uz.gita.memorygame.presentation.screens
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.View
 import android.widget.ImageView
+import androidx.core.view.children
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import by.kirich1409.viewbindingdelegate.viewBinding
 import dagger.hilt.android.AndroidEntryPoint
@@ -34,8 +38,12 @@ class GameScreen : Fragment(R.layout.screen_game) {
     private var secondImageIndex = -1
     private var findCardsCount = 0
 
+    @SuppressLint("FragmentLiveDataObserve")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) = binding.myApply {
         super.onViewCreated(view, savedInstanceState)
+
+        viewModel.reloadGameLiveData.observe(this@GameScreen, reloadGameObserver)
+        viewModel.countLiveData.observe(this@GameScreen, countObserver)
 
         countY = navArgs.verticalCardCount
         countX = navArgs.horizontalCardCount
@@ -44,26 +52,62 @@ class GameScreen : Fragment(R.layout.screen_game) {
             cardHeight = container.height.toFloat() / countY
             cardWidth = container.width.toFloat() / countX
 
-            val ls = viewModel.getCardsByLevel(countX, countY)
-
-            loadImages(ls)
-            lifecycleScope.launch {
-                delay(1000) // 1 soniya kartalarni ochiq ushlab turadi,
-                hideCards()
-                delay(1000) // animatsiya bilan yopilishi uchun 1 soniya ketadi
-                setCardsClick()
-            }
+            val cards = viewModel.getCardsByLevel(countX, countY)
+            loadImages(cards)
+            setCardsClick()
         }
 
         reload.setOnClickListener {
-
+            viewModel.reloadGame()
         }
-        menu.setOnClickListener { }
+        menu.setOnClickListener {
+            findNavController().popBackStack()
+        }
     }
 
-    private fun hideCards() {
-        views.forEach {
-            it.hideImage()
+    private val countObserver = Observer<Int> {
+        binding.attempt.text = it.toString()
+    }
+
+    private val reloadGameObserver = Observer<Unit> {
+        binding.reload.isClickable = false
+        firstImageIndex = -1
+        secondImageIndex = -1
+
+        val cards = viewModel.getCardsByLevel(countX, countY)
+        binding.container.children.forEachIndexed { index, view ->
+            val img = view as ImageView
+            img.tag = cards[index]
+
+            img.isClickable = true
+
+            img.layoutParams.apply {
+                height = cardHeight.toInt()
+                width = cardWidth.toInt()
+            }
+
+            img.animate()
+                .setDuration(500)
+                .rotationBy(180f)
+                .scaleX(0f)
+                .scaleY(0f)
+                .withEndAction {
+                    img.setImageResource(R.drawable.image_back)
+                    img.rotation = 0f
+                    img.animate()
+                        .setDuration(500)
+                        .scaleX(1f)
+                        .scaleY(1f)
+                        .rotationBy(360f)
+                        .start()
+
+                    lifecycleScope.launch {
+                        delay(500)
+                        binding.reload.isClickable = true
+                    }
+                }
+                .start()
+            views[index] = img
         }
     }
 
@@ -72,7 +116,7 @@ class GameScreen : Fragment(R.layout.screen_game) {
             for (j in 0 until countX) {
                 val img = ImageView(requireContext())
                 img.isClickable = false
-                img.setImageResource(images[i * countX + j])
+                img.setImageResource(R.drawable.image_back)
 
                 img.x = j * cardWidth
                 img.y = i * cardHeight
@@ -95,6 +139,7 @@ class GameScreen : Fragment(R.layout.screen_game) {
             imageView.setOnClickListener {
                 if (firstImageIndex != -1 && secondImageIndex != -1) return@setOnClickListener
                 imageView.openImage()
+                viewModel.increaseCount()
 
                 if (firstImageIndex == -1) {
                     firstImageIndex = index

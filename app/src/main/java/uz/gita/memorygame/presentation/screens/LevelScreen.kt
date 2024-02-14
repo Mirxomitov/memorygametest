@@ -16,6 +16,40 @@ class LevelScreen : Fragment(R.layout.screen_level) {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        binding.safariCar
+            .animate()
+            .scaleX(1f)
+            .scaleY(1f)
+            .setDuration(1000)
+            .start()
+
+        binding.tableSafari.animate()
+            .scaleXBy(0.1f)
+            .scaleYBy(0.1f)
+            .setDuration(500)
+            .start()
+
+        binding.mapSafari.animate()
+            .scaleXBy(0.3f)
+            .scaleYBy(0.3f)
+            .setDuration(500)
+            .start()
+
+        binding.root.post {
+            val width = binding.root.width
+            val treeWidth = binding.treeSafari.width
+
+            val treeX = (width - treeWidth).toFloat() / 2
+
+            binding.treeSafari.animate()
+                .scaleX(1f)
+                .scaleY(1f)
+                .rotation(1000f)
+                .setDuration(1000)
+                .x(treeX)
+                .start()
+        }
+
         binding.apply {
             easy.setOnClickListener {
                 startGame(2, 3)
